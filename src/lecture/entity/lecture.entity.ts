@@ -11,11 +11,11 @@ export class LectureModel extends BaseModel<LectureModel> {
   maxAttendees: number;
 
   @Column()
-  uniqueCode: string;
+  lectureSecretCode: string;
 
   @Column()
   teacherId: string;
 
-  @Column()
+  @Column({ nullable: true })
   students: string;
 }

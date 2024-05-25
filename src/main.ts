@@ -1,4 +1,5 @@
 import { NestFactory } from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   SwaggerModule,
@@ -13,7 +14,6 @@ async function bootstrap() {
 
   const configService = app.get<ConfigService>(ConfigService);
 
-  // NOTE 실행환경 분리
   switch (process.env.NODE_ENV) {
     case 'prod':
       app.enableCors({
@@ -37,7 +37,7 @@ async function bootstrap() {
       };
       const swaggerDocumentBuilder = new DocumentBuilder()
         .setTitle('E-LEARNING API')
-        .setDescription('e-learning course reservation service')
+        .setDescription('e-learning course service')
         .setVersion('0.1')
         .build();
       const swaggerDocument = SwaggerModule.createDocument(
@@ -52,6 +52,7 @@ async function bootstrap() {
       );
       break;
   }
+  app.useGlobalPipes(new ValidationPipe());
   await app.listen(+configService.get<number>('SERVER_PORT'));
 }
 bootstrap();

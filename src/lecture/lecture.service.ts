@@ -13,7 +13,8 @@ import * as crypto from 'crypto';
 
 import { LectureModel } from 'src/lecture/entity/lecture.entity';
 import { ResponseDto } from 'src/common/dto/response.dto';
-import { UserDto } from 'src/lecture/dto/user.dto';
+import { UserDto } from 'src/auth/dto/user.dto';
+import { RoomDto } from 'src/lecture/dto/room.dto';
 
 @Injectable()
 export class LectureService {
@@ -24,16 +25,18 @@ export class LectureService {
     private readonly configService: ConfigService,
   ) {}
 
-  async encodeUserPassport(userDto): Promise<string> {
-    const { userId, role } = userDto;
-    const encodedData = Buffer.from(`${userId}:${role}`).toString('base64');
+  async encodeRoomPassport(payload: RoomDto): Promise<string> {
+    const { lectureId, maxAttendees, lectureSecretCode } = payload;
+    const encodedData = Buffer.from(
+      `${lectureId}:${maxAttendees}:${lectureSecretCode}`,
+    ).toString('base64');
     const hmacSecretKey = this.configService.get<string>('HMAC_SECRET_KEY');
     const signature = crypto
       .createHmac('sha256', hmacSecretKey)
       .update(encodedData)
       .digest('hex');
-    const userIdHeader = `${encodedData}.${signature}`;
-    return userIdHeader;
+    const roomIdHeader = `${encodedData}.${signature}`;
+    return roomIdHeader;
   }
 
   async decodeUserHeader(userIdHeader: string): Promise<UserDto> {
@@ -83,7 +86,12 @@ export class LectureService {
       lectureSecretCode: lectureSecretCode,
     });
     const newLecture = await this.lectureRepository.save(lecture);
-    const roomId = newLecture.lectureId;
+    const roomDto = {
+      lectureId: newLecture.lectureId.toString(),
+      maxAttendees: newLecture.maxAttendees.toString(),
+      lectureSecretCode: newLecture.lectureSecretCode,
+    };
+    const roomId = await this.encodeRoomPassport(roomDto);
 
     const responseData = { lectureSecretCode, roomId };
     const response: ResponseDto = {

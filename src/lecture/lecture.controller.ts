@@ -53,7 +53,7 @@ export class LectureController {
   @ApiResponse({ status: 400, description: 'Bad Request' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 500, description: 'Internal server error' })
-  @Post('create')
+  @Post('open')
   @HttpCode(201)
   async createLecture(
     @Headers('X-USER-ID') userIdHeader: string,

@@ -82,9 +82,10 @@ export class LectureService {
       teacherId: userId,
       lectureSecretCode: lectureSecretCode,
     });
-    await this.lectureRepository.save(lecture);
+    const newLecture = await this.lectureRepository.save(lecture);
+    const roomId = newLecture.lectureId;
 
-    const responseData = { lectureSecretCode };
+    const responseData = { lectureSecretCode, roomId };
     const response: ResponseDto = {
       message: 'Success',
       data: responseData,

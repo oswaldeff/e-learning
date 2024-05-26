@@ -8,9 +8,6 @@ export class AttendModel extends BaseModel<AttendModel> {
   attendId: number;
 
   @Column()
-  attendCode: string;
-
-  @Column()
   studentId: number;
 
   @Column()

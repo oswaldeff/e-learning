@@ -257,7 +257,7 @@ export class LectureService {
     if (existingAttend) {
       return {
         message: 'Resource already exists',
-        data: { attendCode: existingAttend.attendCode },
+        data: { attendId: existingAttend.attendId },
         statusCode: HttpStatus.CONFLICT,
       };
     }
@@ -287,9 +287,7 @@ export class LectureService {
         throw new BadRequestException();
       }
 
-      const attendCode = crypto.randomUUID().slice(0, 5);
       const attendObject = this.attendRepository.create({
-        attendCode: attendCode,
         studentId: userId,
         lectureId: existingLecture.lectureId,
       });

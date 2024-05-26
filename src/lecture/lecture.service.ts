@@ -16,7 +16,7 @@ import { LectureModel } from 'src/lecture/entity/lecture.entity';
 import { ResponseDto } from 'src/common/dto/response.dto';
 import { UserDto } from 'src/auth/dto/user.dto';
 import { RoomDto } from 'src/lecture/dto/room.dto';
-import { StudentModel } from 'src/lecture/entity/student.entity';
+import { AttendModel } from 'src/lecture/entity/attend.entity';
 
 @Injectable()
 export class LectureService {
@@ -25,8 +25,8 @@ export class LectureService {
     private readonly configService: ConfigService,
     @InjectRepository(LectureModel)
     private readonly lectureRepository: Repository<LectureModel>,
-    @InjectRepository(StudentModel)
-    private readonly studentRepository: Repository<StudentModel>,
+    @InjectRepository(AttendModel)
+    private readonly attendRepository: Repository<AttendModel>,
     private dataSource: DataSource,
   ) {}
 
@@ -96,9 +96,9 @@ export class LectureService {
       lectureObject,
     );
 
-    const redisChannel = `lecture:${newLecture.lectureId}:maxStudents`;
+    const capacityKey = `lecture:${newLecture.lectureId}:capacity`;
     try {
-      await this.redisClient.set(`${redisChannel}`, maxStudents.toString());
+      await this.redisClient.set(`${capacityKey}`, maxStudents.toString());
 
       const roomDto = {
         lectureId: newLecture.lectureId.toString(),
@@ -115,7 +115,7 @@ export class LectureService {
       };
       return response;
     } catch (e) {
-      await this.redisClient.del(`${redisChannel}`);
+      await this.redisClient.del(`${capacityKey}`);
       throw e;
     }
   }
@@ -160,8 +160,8 @@ export class LectureService {
       throw new NotFoundException();
     }
 
-    const redisChannel = `lecture:${lectureId}:maxStudents`;
-    await this.redisClient.del(`${redisChannel}`);
+    const capacityKey = `lecture:${lectureId}:capacity`;
+    await this.redisClient.del(`${capacityKey}`);
 
     await transactionManager.delete(LectureModel, { lectureId: lectureId });
 
@@ -237,5 +237,71 @@ export class LectureService {
       redisChannel,
       resource,
     );
+  }
+
+  async attendLecture(
+    transactionManager: EntityManager,
+    userId: number,
+    lectureSecretCode: string,
+  ): Promise<ResponseDto> {
+    const existingLecture = await transactionManager.findOne(LectureModel, {
+      where: { lectureSecretCode: lectureSecretCode },
+    });
+    if (!existingLecture) {
+      throw new NotFoundException();
+    }
+
+    const existingAttend = await transactionManager.findOne(AttendModel, {
+      where: { lectureId: existingLecture.lectureId, studentId: userId },
+    });
+    if (existingAttend) {
+      return {
+        message: 'Resource already exists',
+        data: { attendCode: existingAttend.attendCode },
+        statusCode: HttpStatus.CONFLICT,
+      };
+    }
+
+    const resource = `lecture:${existingLecture.lectureId}`;
+    const ttl = 3000;
+    const retryDelay = 100;
+    const maxRetries = 5;
+
+    const lockResult = await this.acquireLock(
+      resource,
+      ttl,
+      retryDelay,
+      maxRetries,
+    );
+
+    if (!lockResult) {
+      throw new BadRequestException();
+    }
+
+    try {
+      const capacityKey = `lecture:${existingLecture.lectureId}:capacity`;
+      const remainingCapacity = await this.redisClient.decr(capacityKey);
+
+      if (remainingCapacity < 0) {
+        await this.redisClient.incr(capacityKey);
+        throw new BadRequestException();
+      }
+
+      const attendCode = crypto.randomUUID().slice(0, 5);
+      const attendObject = this.attendRepository.create({
+        attendCode: attendCode,
+        studentId: userId,
+        lectureId: existingLecture.lectureId,
+      });
+      await transactionManager.save(attendObject);
+
+      const response: ResponseDto = {
+        message: 'Success',
+        statusCode: HttpStatus.CREATED,
+      };
+      return response;
+    } finally {
+      await this.releaseLock(resource);
+    }
   }
 }

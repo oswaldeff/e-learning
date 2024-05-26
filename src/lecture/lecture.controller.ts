@@ -21,6 +21,7 @@ import { LectureService } from 'src/lecture/lecture.service';
 import { CreateLectureDto } from 'src/lecture/dto/create-lecture.dto';
 import { TransactionInterceptor } from 'src/common/interceptor/transaction.interceptor';
 import { TransactionManager } from 'src/common/decorator/transaction.decorator';
+import { AttendLectureDto } from 'src/lecture/dto/attend-lecture.dto';
 
 @ApiTags('Lecture API')
 @Controller('lecture')
@@ -134,6 +135,65 @@ export class LectureController {
         +userId,
         role,
         +lectureId,
+      );
+    } catch (e) {
+      if (e instanceof HttpException) {
+        throw e;
+      } else {
+        throw new InternalServerErrorException();
+      }
+    }
+  }
+
+  @ApiOperation({
+    summary: '강의장 참석 API',
+    description: '',
+  })
+  @ApiHeader({
+    name: 'X-USER-ID',
+    description: '유저 Passport',
+    required: true,
+    schema: {
+      type: 'string',
+      example:
+        'MTp0ZWFjaGVy.e9efcd325dc314431ac1f02d249f8c51db33856834a25436dd789ae960d1c4ec',
+    },
+  })
+  @ApiBody({
+    type: AttendLectureDto,
+    required: true,
+    description: '강의코드',
+    examples: {
+      ExampleBodyData: {
+        value: {
+          lectureSecretCode: '2af61',
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 201, description: 'Success' })
+  @ApiResponse({ status: 400, description: 'Bad Request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 409, description: 'Resource already exists' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
+  @Post('attend')
+  @HttpCode(201)
+  @UseInterceptors(TransactionInterceptor)
+  async attendLecture(
+    @TransactionManager() transactionManager: EntityManager,
+    @Headers('X-USER-ID') userIdHeader: string,
+    @Body() body: AttendLectureDto,
+  ) {
+    try {
+      const { lectureSecretCode } = body;
+
+      const { userId } =
+        await this.lectureService.decodeUserHeader(userIdHeader);
+
+      return await this.lectureService.attendLecture(
+        transactionManager,
+        +userId,
+        lectureSecretCode,
       );
     } catch (e) {
       if (e instanceof HttpException) {

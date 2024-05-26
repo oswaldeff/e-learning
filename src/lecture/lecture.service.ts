@@ -3,6 +3,7 @@ import {
   HttpStatus,
   UnauthorizedException,
   BadRequestException,
+  NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -98,6 +99,55 @@ export class LectureService {
       message: 'Success',
       data: responseData,
       statusCode: HttpStatus.CREATED,
+    };
+    return response;
+  }
+
+  async decodeRoomHeader(roomIdHeader: string): Promise<RoomDto> {
+    const [encodedData, providedSignature] = roomIdHeader.split('.');
+    if (!encodedData || !providedSignature) {
+      throw new UnauthorizedException();
+    }
+
+    const hmacSecretKey = this.configService.get<string>('HMAC_SECRET_KEY');
+    const expectedSignature = crypto
+      .createHmac('sha256', hmacSecretKey)
+      .update(encodedData)
+      .digest('hex');
+    if (providedSignature !== expectedSignature) {
+      throw new UnauthorizedException();
+    }
+
+    const decodedData = Buffer.from(encodedData, 'base64').toString('utf-8');
+    const [lectureId, maxAttendees, lectureSecretCode] = decodedData.split(':');
+    if (!lectureId || !maxAttendees || !lectureSecretCode) {
+      throw new UnauthorizedException();
+    }
+    const roomDto = { lectureId, maxAttendees, lectureSecretCode };
+    return roomDto;
+  }
+
+  async deleteLecture(
+    userId: string,
+    role: string,
+    lectureId: number,
+  ): Promise<ResponseDto> {
+    if (role !== 'teacher') {
+      throw new UnauthorizedException();
+    }
+
+    const existingLecture = await this.lectureRepository.findOne({
+      where: { lectureId: lectureId, teacherId: userId },
+    });
+    if (!existingLecture) {
+      throw new NotFoundException();
+    }
+
+    await this.lectureRepository.delete({ lectureId: lectureId });
+
+    const response: ResponseDto = {
+      message: 'Success',
+      statusCode: HttpStatus.OK,
     };
     return response;
   }

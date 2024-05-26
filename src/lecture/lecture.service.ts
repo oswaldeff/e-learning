@@ -65,7 +65,7 @@ export class LectureService {
   }
 
   async createLecture(
-    userId: string,
+    userId: number,
     role: string,
     maxAttendees: number,
   ): Promise<ResponseDto> {
@@ -128,7 +128,7 @@ export class LectureService {
   }
 
   async deleteLecture(
-    userId: string,
+    userId: number,
     role: string,
     lectureId: number,
   ): Promise<ResponseDto> {

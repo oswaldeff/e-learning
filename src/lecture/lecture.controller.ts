@@ -66,7 +66,7 @@ export class LectureController {
         await this.lectureService.decodeUserHeader(userIdHeader);
 
       return await this.lectureService.createLecture(
-        userId,
+        +userId,
         role,
         maxAttendees,
       );
@@ -120,7 +120,7 @@ export class LectureController {
       const { lectureId } =
         await this.lectureService.decodeRoomHeader(roomIdHeader);
 
-      return await this.lectureService.deleteLecture(userId, role, +lectureId);
+      return await this.lectureService.deleteLecture(+userId, role, +lectureId);
     } catch (e) {
       if (e instanceof HttpException) {
         throw e;

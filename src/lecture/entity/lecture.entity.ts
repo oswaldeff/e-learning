@@ -14,8 +14,5 @@ export class LectureModel extends BaseModel<LectureModel> {
   lectureSecretCode: string;
 
   @Column()
-  teacherId: string;
-
-  @Column({ nullable: true })
-  students: string;
+  teacherId: number;
 }

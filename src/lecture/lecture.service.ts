@@ -263,9 +263,9 @@ export class LectureService {
     }
 
     const resource = `lecture:${existingLecture.lectureId}`;
-    const ttl = 3000;
-    const retryDelay = 100;
-    const maxRetries = 5;
+    const ttl = +this.configService.get<number>('REDIS_LOCK_TTL');
+    const retryDelay = +this.configService.get<number>('REDIS_RETRY_DELAY');
+    const maxRetries = +this.configService.get<number>('REDIS_MAX_RETRIES');
 
     const lockResult = await this.acquireLock(
       resource,

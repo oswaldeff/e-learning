@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   HttpCode,
+  UseInterceptors,
   Headers,
   HttpException,
   InternalServerErrorException,
@@ -14,9 +15,12 @@ import {
   ApiResponse,
 } from '@nestjs/swagger';
 import { Body } from '@nestjs/common/decorators';
+import { EntityManager } from 'typeorm';
 
 import { LectureService } from 'src/lecture/lecture.service';
 import { CreateLectureDto } from 'src/lecture/dto/create-lecture.dto';
+import { TransactionInterceptor } from 'src/common/interceptor/transaction.interceptor';
+import { TransactionManager } from 'src/common/decorator/transaction.decorator';
 
 @ApiTags('Lecture API')
 @Controller('lecture')
@@ -34,7 +38,7 @@ export class LectureController {
     schema: {
       type: 'string',
       example:
-        'dXNlcjE6dGVhY2hlcg==.3580de51660fbe275925b8c754cc1da11f5b455be8e6c00e9b173aa839852d18',
+        'MTp0ZWFjaGVy.e9efcd325dc314431ac1f02d249f8c51db33856834a25436dd789ae960d1c4ec',
     },
   })
   @ApiBody({
@@ -55,7 +59,9 @@ export class LectureController {
   @ApiResponse({ status: 500, description: 'Internal server error' })
   @Post('open')
   @HttpCode(201)
+  @UseInterceptors(TransactionInterceptor)
   async createLecture(
+    @TransactionManager() transactionManager: EntityManager,
     @Headers('X-USER-ID') userIdHeader: string,
     @Body() body: CreateLectureDto,
   ) {
@@ -66,6 +72,7 @@ export class LectureController {
         await this.lectureService.decodeUserHeader(userIdHeader);
 
       return await this.lectureService.createLecture(
+        transactionManager,
         +userId,
         role,
         maxAttendees,
@@ -90,7 +97,7 @@ export class LectureController {
     schema: {
       type: 'string',
       example:
-        'dXNlcjE6dGVhY2hlcg==.3580de51660fbe275925b8c754cc1da11f5b455be8e6c00e9b173aa839852d18',
+        'MTp0ZWFjaGVy.e9efcd325dc314431ac1f02d249f8c51db33856834a25436dd789ae960d1c4ec',
     },
   })
   @ApiHeader({
@@ -109,7 +116,9 @@ export class LectureController {
   @ApiResponse({ status: 500, description: 'Internal server error' })
   @Post('close')
   @HttpCode(200)
+  @UseInterceptors(TransactionInterceptor)
   async deleteLecture(
+    @TransactionManager() transactionManager: EntityManager,
     @Headers('X-USER-ID') userIdHeader: string,
     @Headers('X-ROOM-ID') roomIdHeader: string,
   ) {
@@ -120,7 +129,12 @@ export class LectureController {
       const { lectureId } =
         await this.lectureService.decodeRoomHeader(roomIdHeader);
 
-      return await this.lectureService.deleteLecture(+userId, role, +lectureId);
+      return await this.lectureService.deleteLecture(
+        transactionManager,
+        +userId,
+        role,
+        +lectureId,
+      );
     } catch (e) {
       if (e instanceof HttpException) {
         throw e;

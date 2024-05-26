@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, DataSource, EntityManager } from 'typeorm';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
 import * as crypto from 'crypto';
@@ -16,14 +16,18 @@ import { LectureModel } from 'src/lecture/entity/lecture.entity';
 import { ResponseDto } from 'src/common/dto/response.dto';
 import { UserDto } from 'src/auth/dto/user.dto';
 import { RoomDto } from 'src/lecture/dto/room.dto';
+import { StudentModel } from 'src/lecture/entity/student.entity';
 
 @Injectable()
 export class LectureService {
   constructor(
-    @InjectRedis() private readonly redis: Redis,
+    @InjectRedis() private readonly redisClient: Redis,
+    private readonly configService: ConfigService,
     @InjectRepository(LectureModel)
     private readonly lectureRepository: Repository<LectureModel>,
-    private readonly configService: ConfigService,
+    @InjectRepository(StudentModel)
+    private readonly studentRepository: Repository<StudentModel>,
+    private dataSource: DataSource,
   ) {}
 
   async encodeRoomPassport(payload: RoomDto): Promise<string> {
@@ -65,6 +69,7 @@ export class LectureService {
   }
 
   async createLecture(
+    transactionManager: EntityManager,
     userId: number,
     role: string,
     maxAttendees: number,
@@ -73,7 +78,7 @@ export class LectureService {
       throw new UnauthorizedException();
     }
 
-    const existingLecture = await this.lectureRepository.findOne({
+    const existingLecture = await transactionManager.findOne(LectureModel, {
       where: { teacherId: userId },
     });
     if (existingLecture) {
@@ -81,26 +86,38 @@ export class LectureService {
     }
 
     const lectureSecretCode = crypto.randomUUID().slice(0, 5);
-    const lecture = this.lectureRepository.create({
+    const lectureObject = this.lectureRepository.create({
       maxAttendees: maxAttendees,
-      teacherId: userId,
+      teacherId: +userId,
       lectureSecretCode: lectureSecretCode,
     });
-    const newLecture = await this.lectureRepository.save(lecture);
-    const roomDto = {
-      lectureId: newLecture.lectureId.toString(),
-      maxAttendees: newLecture.maxAttendees.toString(),
-      lectureSecretCode: newLecture.lectureSecretCode,
-    };
-    const roomId = await this.encodeRoomPassport(roomDto);
+    const newLecture = await transactionManager.save(
+      LectureModel,
+      lectureObject,
+    );
 
-    const responseData = { lectureSecretCode, roomId };
-    const response: ResponseDto = {
-      message: 'Success',
-      data: responseData,
-      statusCode: HttpStatus.CREATED,
-    };
-    return response;
+    const redisChannel = `lecture:${newLecture.lectureId}:maxAttendees`;
+    try {
+      await this.redisClient.set(`${redisChannel}`, maxAttendees.toString());
+
+      const roomDto = {
+        lectureId: newLecture.lectureId.toString(),
+        maxAttendees: newLecture.maxAttendees.toString(),
+        lectureSecretCode: newLecture.lectureSecretCode,
+      };
+      const roomId = await this.encodeRoomPassport(roomDto);
+
+      const responseData = { lectureSecretCode, roomId };
+      const response: ResponseDto = {
+        message: 'Success',
+        data: responseData,
+        statusCode: HttpStatus.CREATED,
+      };
+      return response;
+    } catch (e) {
+      await this.redisClient.del(`${redisChannel}`);
+      throw e;
+    }
   }
 
   async decodeRoomHeader(roomIdHeader: string): Promise<RoomDto> {
@@ -108,7 +125,6 @@ export class LectureService {
     if (!encodedData || !providedSignature) {
       throw new UnauthorizedException();
     }
-
     const hmacSecretKey = this.configService.get<string>('HMAC_SECRET_KEY');
     const expectedSignature = crypto
       .createHmac('sha256', hmacSecretKey)
@@ -128,6 +144,7 @@ export class LectureService {
   }
 
   async deleteLecture(
+    transactionManager: EntityManager,
     userId: number,
     role: string,
     lectureId: number,
@@ -136,14 +153,17 @@ export class LectureService {
       throw new UnauthorizedException();
     }
 
-    const existingLecture = await this.lectureRepository.findOne({
+    const existingLecture = await transactionManager.findOne(LectureModel, {
       where: { lectureId: lectureId, teacherId: userId },
     });
     if (!existingLecture) {
       throw new NotFoundException();
     }
 
-    await this.lectureRepository.delete({ lectureId: lectureId });
+    const redisChannel = `lecture:${lectureId}:maxAttendees`;
+    await this.redisClient.del(`${redisChannel}`);
+
+    await transactionManager.delete(LectureModel, { lectureId: lectureId });
 
     const response: ResponseDto = {
       message: 'Success',

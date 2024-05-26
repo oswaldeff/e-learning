@@ -2,6 +2,12 @@ import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
 
 import { BaseModel } from 'src/common/entity/base.entity';
 
+export enum LectureStatusType {
+  RESERVED = 'reserved',
+  ACTIVATED = 'activated',
+  DEACTIVATED = 'deactivated',
+}
+
 @Entity({ name: 'Lecture' })
 export class LectureModel extends BaseModel<LectureModel> {
   @PrimaryGeneratedColumn()
@@ -15,4 +21,11 @@ export class LectureModel extends BaseModel<LectureModel> {
 
   @Column()
   teacherId: number;
+
+  @Column({
+    type: 'enum',
+    enum: LectureStatusType,
+    nullable: false,
+  })
+  status: LectureStatusType;
 }

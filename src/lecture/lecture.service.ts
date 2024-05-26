@@ -17,6 +17,7 @@ import { ResponseDto } from 'src/common/dto/response.dto';
 import { UserDto } from 'src/auth/dto/user.dto';
 import { RoomDto } from 'src/lecture/dto/room.dto';
 import { AttendModel } from 'src/lecture/entity/attend.entity';
+import { LectureStatusType } from 'src/lecture/entity/lecture.entity';
 
 @Injectable()
 export class LectureService {
@@ -73,6 +74,7 @@ export class LectureService {
     userId: number,
     role: string,
     maxStudents: number,
+    status: LectureStatusType,
   ): Promise<ResponseDto> {
     if (role !== 'teacher') {
       throw new UnauthorizedException();
@@ -88,8 +90,9 @@ export class LectureService {
     const lectureSecretCode = crypto.randomUUID().slice(0, 5);
     const lectureObject = this.lectureRepository.create({
       maxStudents: maxStudents,
-      teacherId: +userId,
+      teacherId: userId,
       lectureSecretCode: lectureSecretCode,
+      status: status,
     });
     const newLecture = await transactionManager.save(
       LectureModel,
@@ -301,5 +304,34 @@ export class LectureService {
     } finally {
       await this.releaseLock(resource);
     }
+  }
+
+  async getLectureInformations(lectureId: number): Promise<ResponseDto> {
+    const [lectureInformations] = await this.lectureRepository
+      .createQueryBuilder('l')
+      .leftJoinAndMapMany(
+        'l.attends',
+        AttendModel,
+        'a',
+        'a.lectureId = l.lectureId',
+      )
+      .where('l.lectureId = :lectureId', { lectureId })
+      .getMany();
+
+    if (!lectureInformations) {
+      throw new NotFoundException();
+    }
+
+    if (lectureInformations.status === 'deactivated') {
+      throw new BadRequestException();
+    }
+
+    const responseData = lectureInformations;
+    const response: ResponseDto = {
+      message: 'Success',
+      data: responseData,
+      statusCode: HttpStatus.OK,
+    };
+    return response;
   }
 }

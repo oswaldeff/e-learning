@@ -1,6 +1,7 @@
 import {
   Controller,
   Post,
+  Get,
   HttpCode,
   UseInterceptors,
   Headers,
@@ -50,6 +51,7 @@ export class LectureController {
       ExampleBodyData: {
         value: {
           maxStudents: 50,
+          status: 'activated',
         },
       },
     },
@@ -67,7 +69,7 @@ export class LectureController {
     @Body() body: CreateLectureDto,
   ) {
     try {
-      const { maxStudents } = body;
+      const { maxStudents, status } = body;
 
       const { userId, role } =
         await this.lectureService.decodeUserHeader(userIdHeader);
@@ -77,6 +79,7 @@ export class LectureController {
         +userId,
         role,
         maxStudents,
+        status,
       );
     } catch (e) {
       if (e instanceof HttpException) {
@@ -195,6 +198,56 @@ export class LectureController {
         +userId,
         lectureSecretCode,
       );
+    } catch (e) {
+      if (e instanceof HttpException) {
+        throw e;
+      } else {
+        throw new InternalServerErrorException();
+      }
+    }
+  }
+
+  @ApiOperation({
+    summary: '강의장 조회 API',
+    description: '',
+  })
+  @ApiHeader({
+    name: 'X-USER-ID',
+    description: '유저 Passport',
+    required: true,
+    schema: {
+      type: 'string',
+      example:
+        'MTp0ZWFjaGVy.e9efcd325dc314431ac1f02d249f8c51db33856834a25436dd789ae960d1c4ec',
+    },
+  })
+  @ApiHeader({
+    name: 'X-ROOM-ID',
+    description: '강의장 Passport',
+    required: true,
+    schema: {
+      type: 'string',
+      example:
+        'NTo1MDpkYWZmZg==.a2056f5e18d5fa975634f7960ae3a24f6ee4dba747eaaf89eeab7ff963406400',
+    },
+  })
+  @ApiResponse({ status: 200, description: 'Success' })
+  @ApiResponse({ status: 400, description: 'Bad Request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
+  @Get('informations')
+  @HttpCode(200)
+  async getLectureInformations(
+    @Headers('X-USER-ID') userIdHeader: string,
+    @Headers('X-ROOM-ID') roomIdHeader: string,
+  ) {
+    try {
+      await this.lectureService.decodeUserHeader(userIdHeader);
+
+      const { lectureId } =
+        await this.lectureService.decodeRoomHeader(roomIdHeader);
+
+      return await this.lectureService.getLectureInformations(+lectureId);
     } catch (e) {
       if (e instanceof HttpException) {
         throw e;

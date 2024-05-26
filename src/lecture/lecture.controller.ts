@@ -48,7 +48,7 @@ export class LectureController {
     examples: {
       ExampleBodyData: {
         value: {
-          maxAttendees: 50,
+          maxStudents: 50,
         },
       },
     },
@@ -66,7 +66,7 @@ export class LectureController {
     @Body() body: CreateLectureDto,
   ) {
     try {
-      const { maxAttendees } = body;
+      const { maxStudents } = body;
 
       const { userId, role } =
         await this.lectureService.decodeUserHeader(userIdHeader);
@@ -75,7 +75,7 @@ export class LectureController {
         transactionManager,
         +userId,
         role,
-        maxAttendees,
+        maxStudents,
       );
     } catch (e) {
       if (e instanceof HttpException) {

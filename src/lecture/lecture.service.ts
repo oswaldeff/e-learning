@@ -31,9 +31,9 @@ export class LectureService {
   ) {}
 
   async encodeRoomPassport(payload: RoomDto): Promise<string> {
-    const { lectureId, maxAttendees, lectureSecretCode } = payload;
+    const { lectureId, maxStudents, lectureSecretCode } = payload;
     const encodedData = Buffer.from(
-      `${lectureId}:${maxAttendees}:${lectureSecretCode}`,
+      `${lectureId}:${maxStudents}:${lectureSecretCode}`,
     ).toString('base64');
     const hmacSecretKey = this.configService.get<string>('HMAC_SECRET_KEY');
     const signature = crypto
@@ -72,7 +72,7 @@ export class LectureService {
     transactionManager: EntityManager,
     userId: number,
     role: string,
-    maxAttendees: number,
+    maxStudents: number,
   ): Promise<ResponseDto> {
     if (role !== 'teacher') {
       throw new UnauthorizedException();
@@ -87,7 +87,7 @@ export class LectureService {
 
     const lectureSecretCode = crypto.randomUUID().slice(0, 5);
     const lectureObject = this.lectureRepository.create({
-      maxAttendees: maxAttendees,
+      maxStudents: maxStudents,
       teacherId: +userId,
       lectureSecretCode: lectureSecretCode,
     });
@@ -96,13 +96,13 @@ export class LectureService {
       lectureObject,
     );
 
-    const redisChannel = `lecture:${newLecture.lectureId}:maxAttendees`;
+    const redisChannel = `lecture:${newLecture.lectureId}:maxStudents`;
     try {
-      await this.redisClient.set(`${redisChannel}`, maxAttendees.toString());
+      await this.redisClient.set(`${redisChannel}`, maxStudents.toString());
 
       const roomDto = {
         lectureId: newLecture.lectureId.toString(),
-        maxAttendees: newLecture.maxAttendees.toString(),
+        maxStudents: newLecture.maxStudents.toString(),
         lectureSecretCode: newLecture.lectureSecretCode,
       };
       const roomId = await this.encodeRoomPassport(roomDto);
@@ -135,11 +135,11 @@ export class LectureService {
     }
 
     const decodedData = Buffer.from(encodedData, 'base64').toString('utf-8');
-    const [lectureId, maxAttendees, lectureSecretCode] = decodedData.split(':');
-    if (!lectureId || !maxAttendees || !lectureSecretCode) {
+    const [lectureId, maxStudents, lectureSecretCode] = decodedData.split(':');
+    if (!lectureId || !maxStudents || !lectureSecretCode) {
       throw new UnauthorizedException();
     }
-    const roomDto = { lectureId, maxAttendees, lectureSecretCode };
+    const roomDto = { lectureId, maxStudents, lectureSecretCode };
     return roomDto;
   }
 
@@ -160,7 +160,7 @@ export class LectureService {
       throw new NotFoundException();
     }
 
-    const redisChannel = `lecture:${lectureId}:maxAttendees`;
+    const redisChannel = `lecture:${lectureId}:maxStudents`;
     await this.redisClient.del(`${redisChannel}`);
 
     await transactionManager.delete(LectureModel, { lectureId: lectureId });
@@ -170,5 +170,72 @@ export class LectureService {
       statusCode: HttpStatus.OK,
     };
     return response;
+  }
+
+  private async acquireLock(
+    resource: string,
+    ttl: number,
+    retryDelay: number,
+    maxRetries: number,
+  ): Promise<boolean> {
+    const redisChannel = `lock:${resource}`;
+
+    const lockValue = crypto.randomBytes(16).toString('hex');
+    const lockKey = `lock:${resource}`;
+    let retries = 0;
+
+    while (retries < maxRetries) {
+      const acquired = await this.redisClient.set(
+        lockKey,
+        lockValue,
+        'PX',
+        ttl,
+        'NX',
+      );
+
+      if (acquired === 'OK') {
+        return true;
+      }
+
+      retries += 1;
+      await new Promise((resolve) => setTimeout(resolve, retryDelay));
+    }
+
+    const listener = (message: string) => {
+      if (message === lockValue) {
+        this.redisClient.unsubscribe(redisChannel);
+      }
+    };
+
+    await this.redisClient.subscribe(redisChannel);
+    this.redisClient.on('message', listener);
+
+    return new Promise<boolean>((resolve) => {
+      setTimeout(async () => {
+        await this.redisClient.unsubscribe(redisChannel);
+        this.redisClient.removeListener('message', listener);
+        resolve(false);
+      }, ttl);
+    });
+  }
+
+  private async releaseLock(resource: string): Promise<void> {
+    const redisChannel = `lock:${resource}`;
+
+    const script = `
+      if redis.call("get", KEYS[1]) == ARGV[1] then
+        redis.call("publish", KEYS[2], ARGV[1])
+        return redis.call("del", KEYS[1])
+      else
+        return 0
+      end
+    `;
+    await this.redisClient.eval(
+      script,
+      2,
+      `lock:${resource}`,
+      redisChannel,
+      resource,
+    );
   }
 }

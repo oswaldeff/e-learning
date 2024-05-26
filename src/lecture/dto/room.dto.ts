@@ -5,7 +5,7 @@ export class RoomDto {
   lectureId: string;
 
   @IsString()
-  maxAttendees: string;
+  maxStudents: string;
 
   @IsString()
   lectureSecretCode: string;

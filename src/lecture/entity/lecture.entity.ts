@@ -8,7 +8,7 @@ export class LectureModel extends BaseModel<LectureModel> {
   lectureId: number;
 
   @Column()
-  maxAttendees: number;
+  maxStudents: number;
 
   @Column()
   lectureSecretCode: string;

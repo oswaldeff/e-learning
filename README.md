@@ -81,9 +81,10 @@ http://localhost:3000/swagger/docs
 
 ## ERD
 
-<img width="300" alt="e-learning-erd" src="https://github.com/oswaldeff/e-learning/assets/66583879/408b969b-e905-462f-a858-fccf6e1eee38">
+<img width="300" alt="e-learning-erd" src="https://github.com/oswaldeff/e-learning/assets/66583879/408b969b-e905-462f-a858-fccf6e1eee38">  
+
 1. Lecture테이블은 강의 개설 이벤트 발생시 생성되며, 최대참석가능 수강생 설정인원값과 강의 참석시 활용될 수 있는 강의코드, 강사ID와 강의상태를 표시할 수 있도록 데이터 필드에 반영하였습니다.  
-2. Attend테이블은 강의 참석 이벤트 발생시 생성되며, 무결성을 보장하기 위해 정규화를 적용하여 참석 학생ID 및 연결된 강의ID를 데이터 필드에 반영하였습니다.
+2. Attend테이블은 강의 참석 이벤트 발생시 생성되며, 무결성을 보장하기 위해 정규화를 적용하여 참석 학생ID 및 연결된 강의ID를 데이터 필드에 반영하였습니다.  
 
 ## 구현
 

@@ -1,10 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, HttpStatus } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as crypto from 'crypto';
 
 import { JWTPayload } from 'src/auth/interface/jwt-payload.interface';
 import { UserDto } from 'src/auth/dto/user.dto';
+import { ResponseDto } from 'src/common/dto/response.dto';
 
 @Injectable()
 export class AuthService {
@@ -23,7 +24,7 @@ export class AuthService {
     return token;
   }
 
-  async encodeUserPassport(payload: UserDto): Promise<string> {
+  async encodeUserPassport(payload: UserDto): Promise<ResponseDto> {
     const { userId, role } = payload;
     const encodedData = Buffer.from(`${userId}:${role}`).toString('base64');
     const hmacSecretKey = this.configService.get<string>('HMAC_SECRET_KEY');
@@ -32,6 +33,13 @@ export class AuthService {
       .update(encodedData)
       .digest('hex');
     const userIdHeader = `${encodedData}.${signature}`;
-    return userIdHeader;
+
+    const responseData = { userIdHeader };
+    const response: ResponseDto = {
+      message: 'Success',
+      data: responseData,
+      statusCode: HttpStatus.OK,
+    };
+    return response;
   }
 }

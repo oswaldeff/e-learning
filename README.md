@@ -81,10 +81,10 @@ http://localhost:3000/swagger/docs
 
 ## ERD
 
-<img width="300" alt="e-learning-erd" src="https://github.com/oswaldeff/e-learning/assets/66583879/408b969b-e905-462f-a858-fccf6e1eee38">  
+<img width="300" alt="e-learning-erd" src="https://github.com/oswaldeff/e-learning/assets/66583879/408b969b-e905-462f-a858-fccf6e1eee38">
 
-1. Lecture테이블은 강의 개설 이벤트 발생시 생성되며, 최대참석가능 수강생 설정인원값과 강의 참석시 활용될 수 있는 강의코드, 강사ID와 강의상태를 표시할 수 있도록 데이터 필드에 반영하였습니다.  
-2. Attend테이블은 강의 참석 이벤트 발생시 생성되며, 무결성을 보장하기 위해 정규화를 적용하여 참석 학생ID 및 연결된 강의ID를 데이터 필드에 반영하였습니다.  
+1. Lecture테이블은 강의 개설 이벤트 발생시 생성되며, 최대참석가능 수강생 설정인원값과 강의 참석시 활용될 수 있는 강의코드, 강사ID와 강의상태를 표시할 수 있도록 데이터 필드에 반영하였습니다.
+2. Attend테이블은 강의 참석 이벤트 발생시 생성되며, 무결성을 보장하기 위해 정규화를 적용하여 참석 학생ID 및 연결된 강의ID를 데이터 필드에 반영하였습니다.
 
 ## 구현
 
@@ -108,6 +108,7 @@ http://localhost:3000/swagger/docs
 4. 잠금이 성공적으로 획득된 경우 true를 반환하여 attendLecture메서드의 다음 단계가 실행되도록 했습니다.
 5. 만일 잠금이 실패하는 경우 잠금 토큰에 대한 구독 이벤트를 통해 잠금 획득 실패에 대한 처리를 적용하였습니다.
 6. 락 해제시(releaseLock), Lua 스크립트를 사용하여 잠금 해제를 적용하였으며, attendLecture메서드에서 finally문을 통해 해제가 보장되도록 했습니다.
+7. 현재 구현된 코드에서는 락이 걸려있는동안 발생한 요청을 실패처리 하도록 되어있는데, redis queue자료구조를 통해 요청에 대한 이벤트를 저장하고 락 해제시 순차적 처리를 보장해야하는 부분은 코드에 반영하지 못했습니다.
 
 ### 강의장 조회
 
